@@ -39,6 +39,8 @@
         .start-btn.secondary { background: rgba(255,255,255,0.2); color: white; border: 2px solid white; }
         .start-btn.secondary:hover { background: rgba(255,255,255,0.3); }
         
+        .start-btn.search { background: rgba(255,255,255,0.2); color: white; border: 2px solid white; }
+        .start-btn.search:hover { background: rgba(255,255,255,0.3); }
         .start-btn.reset { 
             margin-top: 40px; 
             background: transparent; 
@@ -144,6 +146,33 @@
             .container { padding: 10px; }
             .question-card { padding: 15px; }
         }
+        
+        /* 查答案页面 */
+        .search-screen { display: none; }
+        .search-screen.active { display: block; }
+        
+        .search-header { padding: 16px; background: white; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .search-input { width: 100%; padding: 12px 16px; border: 2px solid #e0e0e0; border-radius: 10px; font-size: 16px; outline: none; transition: border-color 0.3s; }
+        .search-input:focus { border-color: #1a73e8; }
+        .search-category { width: 100%; margin-top: 10px; padding: 10px; border: 2px solid #e0e0e0; border-radius: 10px; font-size: 14px; background: white; cursor: pointer; }
+        .search-stats { padding: 10px 16px; color: #666; font-size: 14px; }
+        
+        .result-card { background: white; border-radius: 12px; padding: 16px; margin: 10px 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+        .result-card .result-question { font-size: 15px; line-height: 1.6; color: #333; margin-bottom: 10px; }
+        .result-card .result-answer-wrap { display: flex; align-items: center; gap: 8px; }
+        .result-card .result-label { font-size: 12px; color: #888; }
+        .result-card .result-answer-value { background: #e8f5e9; color: #2e7d32; padding: 6px 14px; border-radius: 6px; font-weight: bold; font-size: 15px; }
+        .result-card .result-category { font-size: 11px; color: #aaa; margin-top: 8px; }
+        
+        .highlight { background: #fff59d; padding: 0 2px; border-radius: 3px; }
+        
+        .search-empty { text-align: center; padding: 60px 20px; color: #999; }
+        .search-empty .empty-icon { font-size: 48px; margin-bottom: 16px; }
+        .search-tips { margin-top: 12px; font-size: 13px; color: #bbb; }
+        
+        @media (max-width: 600px) {
+            .result-card { margin: 8px 10px; }
+        }
     </style>
 </head>
 <body>
@@ -154,6 +183,7 @@
         
         <button class="start-btn primary" onclick="startExam()">开始答题</button>
         <button class="start-btn secondary" onclick="startReview()">开始背题</button>
+        <button class="start-btn search" onclick="startSearch()">🔍 查答案</button>
         
         <button class="start-btn reset" onclick="resetAnswers()">清零所有记录</button>
     </div>
@@ -200,6 +230,26 @@
         <div class="back-to-top" onclick="window.scrollTo({top:0,behavior:'smooth'})">↑</div>
     </div>
     
+    <!-- 查答案页面 -->
+    <div class="search-screen" id="searchScreen">
+        <div class="nav-bar">
+            <div class="nav-content">
+                <button class="nav-back" onclick="goBack()">← 返回</button>
+                <div class="nav-stats">
+                    查答案
+                </div>
+            </div>
+        </div>
+        <div class="search-header">
+            <input type="text" id="searchInput" class="search-input" placeholder="输入题目关键词搜索..." autocomplete="off">
+            <select id="searchCategory" class="search-category">
+                <option value="">全部分类</option>
+            </select>
+        </div>
+        <div class="search-stats" id="searchStats"></div>
+        <div class="container" id="searchResults"></div>
+    </div>
+    
     <div class="toast" id="toast"></div>
 
     <script src="questions.js"></script>
@@ -216,6 +266,7 @@
         function showScreen(screenId) {
             document.getElementById('startScreen').style.display = screenId === 'start' ? 'flex' : 'none';
             document.getElementById('examScreen').classList.toggle('active', screenId === 'exam');
+            document.getElementById('searchScreen').classList.toggle('active', screenId === 'search');
         }
         
         function startExam() {
@@ -236,6 +287,67 @@
         
         function goBack() {
             showScreen('start');
+        }
+        
+        function startSearch() {
+            showScreen('search');
+            initSearchCategory();
+            document.getElementById('searchInput').focus();
+        }
+        
+        function initSearchCategory() {
+            const sel = document.getElementById('searchCategory');
+            const cats = [...new Set(questions.map(q => q.category))];
+            sel.innerHTML = '<option value="">全部分类</option>' + cats.map(c => '<option value="' + c + '">' + c + '</option>').join('');
+            sel.onchange = () => renderSearchResults();
+            document.getElementById('searchInput').oninput = () => renderSearchResults();
+            renderSearchResults();
+        }
+        
+        function highlightText(text, keyword) {
+            if (!keyword) return text;
+            const regex = new RegExp('(' + keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'gi');
+            return text.replace(regex, '<span class="highlight">$1</span>');
+        }
+        
+        function renderSearchResults() {
+            const keyword = document.getElementById('searchInput').value.trim();
+            const category = document.getElementById('searchCategory').value;
+            const container = document.getElementById('searchResults');
+            const stats = document.getElementById('searchStats');
+            
+            let filtered = questions;
+            if (category) filtered = filtered.filter(q => q.category === category);
+            if (keyword) {
+                const kw = keyword.toLowerCase();
+                filtered = filtered.filter(q => q.question.toLowerCase().includes(kw));
+            }
+            
+            if (!keyword && !category) {
+                container.innerHTML = '<div class="search-empty"><div class="empty-icon">🔍</div><div>输入关键词搜索题目</div><div class="search-tips">支持按题目内容关键词搜索</div></div>';
+                stats.textContent = '';
+                return;
+            }
+            
+            if (filtered.length === 0) {
+                container.innerHTML = '<div class="search-empty"><div class="empty-icon">😕</div><div>未找到匹配的题目</div><div class="search-tips">尝试其他关键词</div></div>';
+                stats.textContent = '';
+                return;
+            }
+            
+            stats.textContent = '找到 ' + filtered.length + ' 道相关题目';
+            
+            let html = '';
+            filtered.forEach((q, i) => {
+                const qNum = i + 1;
+                const displayQ = q.question.replace(/^\d+\.?/, '').trim();
+                html += '<div class="result-card">';
+                html += '<div class="result-question">' + highlightText(displayQ, keyword) + '</div>';
+                html += '<div class="result-answer-wrap"><span class="result-label">答案</span><span class="result-answer-value">' + q.answer + '</span></div>';
+                html += '<div class="result-category">' + q.category + ' · ' + q.type + '</div>';
+                html += '</div>';
+            });
+            container.innerHTML = html;
         }
         
         function resetAnswers() {
