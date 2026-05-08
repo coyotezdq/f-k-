@@ -339,12 +339,20 @@
             
             let html = '';
             filtered.forEach((q, i) => {
-                const qNum = i + 1;
                 const displayQ = q.question.replace(/^\d+\.?/, '').trim();
+                const optCount = q.options.length - 1;
                 html += '<div class="result-card">';
+                html += '<div class="question-type ' + (optCount === 1 ? 'single' : 'multi') + '" style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;margin-bottom:8px;background:' + (optCount === 1 ? '#e3f2fd;color:#1565c0' : '#fce4ec;color:#c2185b') + ';">' + (optCount === 1 ? '单选题' : '多选题') + '</div>';
                 html += '<div class="result-question">' + highlightText(displayQ, keyword) + '</div>';
-                html += '<div class="result-answer-wrap"><span class="result-label">答案</span><span class="result-answer-value">' + q.answer + '</span></div>';
-                html += '<div class="result-category">' + q.category + ' · ' + q.type + '</div>';
+                html += '<div class="result-options">';
+                q.options.slice(0, -1).forEach((opt, oi) => {
+                    const letter = String.fromCharCode(65 + oi);
+                    const isAns = q.answer.includes(letter);
+                    const optText = opt.replace(/^[A-E]\.?\s*/, '');
+                    html += '<div style="padding:4px 0;font-size:13px;color:' + (isAns ? '#2e7d32;font-weight:bold' : '#555') + ';">' + letter + '. ' + highlightText(optText, keyword) + (isAns ? '  ✓' : '') + '</div>';
+                });
+                html += '</div>';
+                html += '<div class="result-category">' + q.category + '</div>';
                 html += '</div>';
             });
             container.innerHTML = html;
@@ -422,7 +430,7 @@
                 html += '<div class="question-text">' + q.question + '</div>';
                 html += '<div class="options">';
                 
-                q.options.forEach((opt, optIdx) => {
+                q.options.slice(0, -1).forEach((opt, optIdx) => {
                     const optLetter = String.fromCharCode(65 + optIdx);
                     let optionClass = 'option';
                     if (currentMode === 'exam') {
@@ -433,9 +441,10 @@
                     } else {
                         if (q.answer.includes(optLetter)) optionClass += ' correct';
                     }
+                    const optText = opt.replace(/^[A-E]\.?\s*/, '');
                     html += '<div class="' + optionClass + '" onclick="selectOption(' + globalIdx + ', \'' + optLetter + '\')">';
                     html += '<span class="option-mark">' + optLetter + '</span>';
-                    html += '<span class="option-text">' + opt + '</span></div>';
+                    html += '<span class="option-text">' + optText + '</span></div>';
                 });
                 
                 html += '</div>';
@@ -463,7 +472,8 @@
         function selectOption(idx, letter) {
             if (currentMode === 'review') return;
             const q = getFilteredQuestions()[idx];
-            if (q.type === '单选题') {
+            const optCount = q.options.length - 1;
+            if (optCount === 1) {
                 userAnswers[q.question] = letter;
             } else {
                 const current = userAnswers[q.question] || '';
